@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İBRAHİM ÖNAL FEN LİSESİ REHBERLİK SERVİSİ RANDEVU SİSTEMİ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+
+    <!-- FIREBASE KÜTÜPHANELERİ (Veritabanı için) -->
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-indigo-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-700 p-3 rounded-xl shadow-inner">
+                    <i class="fa-solid fa-graduation-cap text-2xl text-indigo-200"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-wide">İBRAHİM ÖNAL FEN LİSESİ</h1>
+                    <p class="text-xs sm:text-sm text-indigo-200 font-medium">Rehberlik Servisi Randevu Sistemi</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="switchTab('student')" id="btn-student" class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white shadow transition hover:bg-indigo-500">
+                    <i class="fa-solid fa-calendar-plus mr-2"></i>Randevu Al
+                </button>
+                <button onclick="toggleTheme()" id="theme-toggle" class="p-2.5 text-sm rounded-lg bg-indigo-800 text-white border border-indigo-700"><i class="fa-solid fa-moon"></i></button>
+                <button onclick="openAdminModal()" class="p-2.5 text-xs font-semibold rounded-lg bg-indigo-950/60 text-indigo-300 hover:text-white border border-indigo-800/60 shadow">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        
+        <!-- Yükleniyor Ekranı -->
+        <div id="loading-screen" class="flex flex-col items-center justify-center py-20 text-indigo-600">
+            <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-4"></i>
+            <p class="font-semibold">Sistem veritabanına bağlanıyor...</p>
+        </div>
+
+        <!-- ÖĞRENCİ EKRANI -->
+        <div id="view-student" class="space-y-6 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Bugün</p>
+                    <p id="today-date" class="text-lg font-bold text-slate-900 mt-1">—</p>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Yaklaşan görüşmelerim</p>
+                    <div id="student-upcoming" class="text-sm text-slate-600 mt-2">Randevularınızı görmek için bilgilerinizi girin.</div>
+                </div>
+            </div>
+
+            <!-- Randevu Arama -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <h3 class="font-bold text-slate-900 mb-2">Randevumu bul / yönet</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input id="manage-name" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm" placeholder="Ad Soyad">
+                    <select id="manage-grade" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm"><option value="">Sınıf</option><option>9</option><option>10</option><option>11</option><option>12</option></select>
+                    <input id="manage-branch" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm" placeholder="Şube">
+                </div>
+                <button onclick="findStudentAppointments()" class="mt-3 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">Göster</button>
+                <div id="student-manage-list" class="mt-3 space-y-2"></div>
+            </div>
+
+            <!-- Randevu Alma -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                <div class="mb-8">
+                    <label class="block text-sm font-semibold text-slate-700 mb-3">1. Tarih Seçimi</label>
+                    <input id="appointment-date" type="date" class="w-full sm:w-auto px-4 py-3 rounded-xl border border-slate-300 mb-4" onchange="selectCalendarDate(this.value)">
+                    <div id="day-selector" class="grid grid-cols-2 sm:grid-cols-5 gap-3"></div>
+                </div>
+                <div class="mb-8">
+                    <label class="block text-sm font-semibold text-slate-700 mb-3">2. Ders Saati Seçimi <span id="selected-day-label" class="text-indigo-600 font-normal"></span></label>
+                    <div id="slot-selector" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="col-span-full py-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">Lütfen önce yukarıdan bir gün seçiniz.</div>
+                    </div>
+                </div>
+                <div id="appointment-form-container" class="hidden bg-indigo-50/50 rounded-xl p-6 border border-indigo-100">
+                    <form id="appointment-form" onsubmit="handleAppointmentSubmit(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div><input type="text" id="student-name" required placeholder="Ad Soyad" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"></div>
+                        <div><select id="student-grade" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm bg-white"><option value="">Sınıf Seçiniz</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select></div>
+                        <div><input type="text" id="student-branch" required placeholder="Şube" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm bg-white uppercase"></div>
+                        <div class="sm:col-span-3 flex justify-end mt-2"><button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white font-semibold rounded-lg">Randevuyu Onayla</button></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- YÖNETİCİ EKRANI -->
+        <div id="view-admin" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                <div class="flex justify-between border-b pb-4 mb-6">
+                    <h2 class="text-xl font-bold text-slate-900">Yönetim Paneli</h2>
+                    <button onclick="logoutAdmin()" class="px-4 py-2 bg-rose-50 text-rose-600 rounded-lg text-sm font-semibold">Çıkış Yap</button>
+                </div>
+                <div class="flex space-x-2 border-b border-slate-200 mb-6">
+                    <button onclick="switchAdminTab('matrix')" id="adm-tab-matrix" class="pb-3 px-4 font-semibold text-sm border-b-2 border-indigo-600 text-indigo-600">Müsaitlik Matrisi</button>
+                    <button onclick="switchAdminTab('appointments')" id="adm-tab-appointments" class="pb-3 px-4 font-semibold text-sm border-b-2 border-transparent text-slate-500">Alınan Randevular</button>
+                </div>
+
+                <div id="admin-section-matrix" class="space-y-4">
+                    <div class="flex flex-col sm:flex-row gap-2 p-3 bg-slate-50 border rounded-xl">
+                        <select id="bulk-day" class="px-3 py-2 rounded-lg border text-sm"><option value="">Gün seçin</option><option value="pazartesi">Pazartesi</option><option value="sali">Salı</option><option value="carsamba">Çarşamba</option><option value="persembe">Perşembe</option><option value="cuma">Cuma</option></select>
+                        <button onclick="bulkCloseDay(true)" class="px-3 py-2 rounded-lg bg-rose-100 text-rose-700 text-sm font-semibold">Günü kapat</button>
+                        <button onclick="bulkCloseDay(false)" class="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-700 text-sm font-semibold">Günü aç</button>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <tbody id="matrix-tbody" class="divide-y divide-slate-100 text-sm"></tbody>
+                    </table>
+                </div>
+
+                <div id="admin-section-appointments" class="hidden space-y-4">
+                    <table class="w-full text-left border-collapse">
+                        <tbody id="appointments-tbody" class="divide-y divide-slate-100 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modallar (Yönetici Giriş ve Uyarı) -->
+    <div id="admin-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+            <h3 class="font-bold mb-4">Yönetici Girişi</h3>
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <input type="password" id="admin-password" placeholder="Şifre" class="w-full px-4 py-2 border rounded-lg">
+                <button type="submit" class="w-full py-2 bg-indigo-600 text-white rounded-lg">Giriş</button>
+            </form>
+        </div>
+    </div>
+    <div id="message-modal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <h4 id="message-title" class="font-bold text-lg mb-2">Başarılı</h4>
+            <p id="message-text" class="text-sm mb-4">İşlem yapıldı.</p>
+            <button onclick="closeMessageModal()" class="w-full py-2 bg-indigo-600 text-white rounded-lg">Tamam</button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT & VERİTABANI BAĞLANTISI -->
+    <script>
+    // ==========================================
+    // SİZİN FIREBASE BAĞLANTINIZ (OTOMATİK EKLENDİ)
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyCpGAt5wMB45su9HYDX4vKJsJLR0v5SuYM",
+      authDomain: "okulrehberlik-32efb.firebaseapp.com",
+      projectId: "okulrehberlik-32efb",
+      storageBucket: "okulrehberlik-32efb.firebasestorage.app",
+      messagingSenderId: "187426861270",
+      appId: "1:187426861270:web:e02d5e22d133813bf65977"
+    };
+
+    // Firebase'i Başlat
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Uygulama Değişkenleri
+    const DAYS = [{id:'pazartesi',name:'Pazartesi',n:1},{id:'sali',name:'Salı',n:2},{id:'carsamba',name:'Çarşamba',n:3},{id:'persembe',name:'Perşembe',n:4},{id:'cuma',name:'Cuma',n:5}];
+    const LESSONS = [{id:1,time:'08:30 - 09:15',label:'1. Ders'},{id:2,time:'09:25 - 10:10',label:'2. Ders'},{id:3,time:'10:20 - 11:05',label:'3. Ders'},{id:4,time:'11:15 - 12:00',label:'4. Ders'},{id:5,time:'13:00 - 13:45',label:'5. Ders'},{id:6,time:'13:55 - 14:40',label:'6. Ders'},{id:7,time:'14:50 - 15:35',label:'7. Ders'},{id:8,time:'15:45 - 16:30',label:'8. Ders'}];
+    
+    let state = { isAdminLoggedIn:false, selectedDay:null, selectedDate:null, selectedLesson:null, closedSlots:{}, appointments:[] };
+    const todayISO = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+    const fmtDate = iso => iso ? new Date(iso+'T12:00:00').toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
+    const weekdayId = iso => { const n=new Date(iso+'T12:00:00').getDay(); return ({1:'pazartesi',2:'sali',3:'carsamba',4:'persembe',5:'cuma'})[n] || null; };
+
+    // ==========================================
+    // VERİTABANINI DİNLEME (GERÇEK ZAMANLI)
+    // ==========================================
+    let isDataLoaded = false;
+    
+    // Randevuları canlı dinle
+    db.collection("appointments").onSnapshot((snapshot) => {
+        state.appointments = [];
+        snapshot.forEach((doc) => {
+            state.appointments.push({ id: doc.id, ...doc.data() });
+        });
+        updateUI();
+        checkInitialLoad();
+    });
+
+    // Kapalı saatleri canlı dinle
+    db.collection("settings").doc("closedSlots").onSnapshot((doc) => {
+        if(doc.exists) { state.closedSlots = doc.data(); } 
+        else { state.closedSlots = {}; }
+        updateUI();
+        checkInitialLoad();
+    });
+
+    let loadCount = 0;
+    function checkInitialLoad() {
+        loadCount++;
+        if(loadCount >= 2 && !isDataLoaded) {
+            isDataLoaded = true;
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('view-student').classList.remove('hidden');
+            initApp();
+        }
+    }
+
+    // ==========================================
+    // VERİ KAYDETME FONKSİYONLARI (FIREBASE)
+    // ==========================================
+    function handleAppointmentSubmit(e) {
+      e.preventDefault();
+      const name=document.getElementById('student-name').value.trim(), grade=document.getElementById('student-grade').value, branch=document.getElementById('student-branch').value.trim().toUpperCase();
+      if(!state.selectedDate||!state.selectedLesson||!name||!grade||!branch){showCustomMessage('Hata','Bilgileri eksiksiz doldurun.','error');return;}
+      
+      const l=LESSONS.find(x=>x.id===Number(state.selectedLesson)), d=DAYS.find(x=>x.id===state.selectedDay);
+      
+      db.collection("appointments").add({
+          day: state.selectedDay,
+          dayName: d.name,
+          date: state.selectedDate,
+          lessonId: Number(state.selectedLesson),
+          lessonName: `${l.label} (${l.time})`,
+          name: name,
+          grade: grade,
+          branch: branch,
+          createdAt: new Date().toISOString()
+      }).then(() => {
+          document.getElementById('appointment-form').reset();
+          document.getElementById('appointment-form-container').classList.add('hidden');
+          showCustomMessage('Randevu onaylandı', `Randevunuz başarıyla kaydedildi.`, 'success');
+      });
+    }
+
+    function cancelAppointment(id){
+        if(!confirm('İptal etmek istediğinize emin misiniz?')) return;
+        db.collection("appointments").doc(id).delete().then(() => {
+            showCustomMessage('Başarılı', 'Randevu iptal edildi.', 'success');
+        });
+    }
+
+    function toggleSlot(k) {
+        let updatedSlots = { ...state.closedSlots };
+        if(updatedSlots[k]) delete updatedSlots[k];
+        else updatedSlots[k] = true;
+        
+        db.collection("settings").doc("closedSlots").set(updatedSlots);
+    }
+
+    function bulkCloseDay(close) {
+        const day=document.getElementById('bulk-day').value;
+        if(!day) return;
+        let updatedSlots = { ...state.closedSlots };
+        LESSONS.forEach(l => {
+            const k = `${day}-${l.id}`;
+            if(close) updatedSlots[k] = true; else delete updatedSlots[k];
+        });
+        db.collection("settings").doc("closedSlots").set(updatedSlots);
+        showCustomMessage('İşlem tamamlandı', 'Güncellendi', 'success');
+    }
+
+    // ==========================================
+    // ARAYÜZ (UI) GÜNCELLEME İŞLEMLERİ
+    // ==========================================
+    function initApp(){
+      const date=document.getElementById('appointment-date'); date.min=todayISO();
+      document.getElementById('today-date').textContent=fmtDate(todayISO());
+      updateUI();
+    }
+
+    function updateUI() {
+        if(!isDataLoaded) return;
+        renderStudentDays();
+        renderStudentLessons();
+        if(state.isAdminLoggedIn) {
+            renderAdminMatrix();
+            renderAppointmentsList();
+        }
+    }
+
+    function renderStudentDays(){
+      const c=document.getElementById('day-selector');c.innerHTML='';
+      DAYS.forEach(day=>{
+        const b=document.createElement('button');b.type='button';
+        b.className=`p-4 rounded-xl border text-center font-semibold text-sm ${state.selectedDay===day.id?'bg-indigo-600 text-white':'bg-white text-slate-700'}`;
+        b.innerHTML=`<span>${day.name}</span>`;
+        b.onclick=()=>{
+            const base=todayISO(); let d=new Date(base+'T12:00:00'); let delta=(day.n-d.getDay()+7)%7; if(delta===0)delta=7; d.setDate(d.getDate()+delta);
+            const iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            selectCalendarDate(iso);
+        };
+        c.appendChild(b);
+      });
+    }
+
+    function selectCalendarDate(iso){
+      if(!iso)return; 
+      const day=weekdayId(iso);
+      state.selectedDate=iso; state.selectedDay=day; state.selectedLesson=null;
+      document.getElementById('appointment-date').value=iso;
+      document.getElementById('selected-day-label').innerText=`(${fmtDate(iso)})`;
+      document.getElementById('appointment-form-container').classList.add('hidden');
+      updateUI();
+    }
+
+    function renderStudentLessons(){
+      const c=document.getElementById('slot-selector');c.innerHTML='';
+      if(!state.selectedDay||!state.selectedDate) return;
+      LESSONS.forEach(l=>{
+        const key=`${state.selectedDay}-${l.id}`, closed=!!state.closedSlots[key];
+        const booked=state.appointments.some(a=>a.date===state.selectedDate&&Number(a.lessonId)===l.id);
+        const unavailable=closed||booked;
+        const b=document.createElement('button');b.type='button';b.disabled=unavailable;
+        b.className=`p-3.5 rounded-xl border text-left ${unavailable?(booked?'bg-amber-50 text-amber-700':'bg-slate-100 text-slate-400'):state.selectedLesson===l.id?'bg-indigo-50 border-indigo-600':'bg-white'}`;
+        b.innerHTML=`<span class="font-bold text-xs">${l.label} (${unavailable?(booked?'Dolu':'Kapalı'):'Müsait'})</span>`;
+        if(!unavailable) b.onclick=()=>{state.selectedLesson=l.id; document.getElementById('appointment-form-container').classList.remove('hidden'); updateUI();};
+        c.appendChild(b);
+      });
+    }
+
+    function renderAdminMatrix(){
+      const tb=document.getElementById('matrix-tbody');tb.innerHTML='';
+      LESSONS.forEach(l=>{
+        let h=`<td class="p-3 font-medium">${l.label}</td>`;
+        DAYS.forEach(d=>{
+            const k=`${d.id}-${l.id}`, closed=!!state.closedSlots[k];
+            h+=`<td class="p-3"><button onclick="toggleSlot('${k}')" class="px-3 py-1 rounded text-xs ${closed?'bg-rose-100':'bg-emerald-100'}">${closed?'Kapalı':'Müsait'}</button></td>`;
+        });
+        const tr=document.createElement('tr'); tr.innerHTML=h; tb.appendChild(tr);
+      });
+    }
+
+    function renderAppointmentsList(){
+      const tb=document.getElementById('appointments-tbody'); tb.innerHTML='';
+      state.appointments.forEach(a=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td class="p-3">${fmtDate(a.date)}</td><td class="p-3">${a.lessonName}</td><td class="p-3">${a.name}</td><td class="p-3"><button onclick="cancelAppointment('${a.id}')" class="text-rose-600 text-xs font-bold">İptal</button></td>`;
+          tb.appendChild(tr);
+      });
+    }
+
+    function findStudentAppointments(){
+        const name=document.getElementById('manage-name').value.trim().toLocaleLowerCase('tr-TR');
+        const c=document.getElementById('student-manage-list'); c.innerHTML='';
+        const matches=state.appointments.filter(a=>a.name.toLocaleLowerCase('tr-TR')===name);
+        matches.forEach(a=>{
+            const div=document.createElement('div'); div.className='p-3 border rounded-xl flex justify-between';
+            div.innerHTML=`<span>${fmtDate(a.date)} · ${a.lessonName}</span> <button onclick="cancelAppointment('${a.id}')" class="text-rose-600 text-xs font-bold">İptal</button>`;
+            c.appendChild(div);
+        });
+    }
+
+    function switchTab(t){if(t==='student'){document.getElementById('view-student').classList.remove('hidden');document.getElementById('view-admin').classList.add('hidden');}}
+    function switchAdminTab(s){const m=s==='matrix';document.getElementById('admin-section-matrix').classList.toggle('hidden',!m);document.getElementById('admin-section-appointments').classList.toggle('hidden',m);}
+    function openAdminModal(){if(state.isAdminLoggedIn){switchTab('');document.getElementById('view-student').classList.add('hidden');document.getElementById('view-admin').classList.remove('hidden');updateUI();}else{document.getElementById('admin-modal').classList.remove('hidden');}}
+    function closeAdminModal(){document.getElementById('admin-modal').classList.add('hidden');}
+    function handleAdminLogin(e){e.preventDefault();if(document.getElementById('admin-password').value==='ibrahim_önal_fen_lisesi'){state.isAdminLoggedIn=true;closeAdminModal();openAdminModal();}}
+    function logoutAdmin(){state.isAdminLoggedIn=false;switchTab('student');}
+    function showCustomMessage(tit,txt,typ='success'){document.getElementById('message-title').innerText=tit;document.getElementById('message-text').innerText=txt;document.getElementById('message-modal').classList.remove('hidden');}
+    function closeMessageModal(){document.getElementById('message-modal').classList.add('hidden');}
+    function toggleTheme(){document.body.classList.toggle('dark-mode');}
+    </script>
+</body>
+</html>
